@@ -50,5 +50,8 @@ class Util:
         return thr
 
     def getContours( self,img ):
-        (_, contours, _) = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        if( len(img.shape) == 3):
+            (_, contours, _) = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        else:
+            (contours,_) = cv2.findContours(img, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         return contours
