@@ -3,6 +3,7 @@
 """
 
 import cv2
+import numpy as np
 
 class Util:
     WHITE = (255,255,255)
@@ -63,13 +64,13 @@ class Util:
         """
         cv2.drawContours(img, contours, i , self.WHITE, -1)
 
-    def removeBlue(self, img):
+    def removeScale(self, img, _lower =[0,0,0], _upper=[127,127,127]):
         """
             Function that helps to remove a certain gama of
             colors. Phantom code now.
         """
-        lower = np.array([0,30,255])
-        upper = np.array([255,255,255])
+        lower = np.array(_lower)
+        upper = np.array(_upper)
         mask = cv2.inRange(img, lower, upper)
         res = cv2.bitwise_and(img, img, mask= mask)
         return res
@@ -82,6 +83,13 @@ class Util:
             _, thr= cv2.threshold(self.togray( im ) ,mi,ma,cv2.THRESH_BINARY)
         else:
             _, thr= cv2.threshold(im  ,mi,ma,cv2.THRESH_BINARY)
+        return thr
+
+    def applyAdaptativeThresh(self, img):
+        """
+            Function that helps to apply adaptative thresh.
+        """
+        thr = cv2.adaptiveThreshold(self.togray(img),255,cv2.ADAPTIVE_THRESH_MEAN_C,cv2.THRESH_BINARY,11,2)
         return thr
 
     def getContours( self,img ):

@@ -24,6 +24,7 @@ class ExtractorBody:
         self.util = Util()
         self.imgReal = self.util.readImage( kwargs["pathReal"] )
         self.imgTemp = self.util.readImage( kwargs["pathTemp"] )
+        self.imgDepth = self.util.readImage( kwargs["pathDepthI"] )
         self.imgTempCopy = self.imgTemp.copy()
         self.mCamera = np.load(kwargs["mCamera"])
         self.mTrans = np.load(kwargs["mTrans"])
@@ -54,7 +55,8 @@ class ExtractorBody:
                 if(sum(img[row][col]) == self.SUM_RGB_WHITE): continue
                 add += self.imgTempCopy[row][col][self.RED_IDX]
                 npixels += 1
-        avg = add / npixels
+        if( npixels ): avg = add / npixels
+        else: avg = 0
         return avg
 
     def cleanValuesNotInSelectedRegion( self):
@@ -88,6 +90,8 @@ class ExtractorBody:
                 if( avg > self.RED_THRESH ):
                     self.util.fillContour(self.imgTemp, contours, i)
                     possible_bodies.append(i)
+            else:
+                self.util.fillContour(self.imgReal, contours, i)
         if( len(possible_bodies)):
             self.cleanValuesNotInSelectedRegion()
         return possible_bodies
@@ -98,9 +102,16 @@ class ExtractorBody:
             all parts to extract the body, could be understood
             as the main part of the algorithm
         """
+        print("\tModifying color image")
+        self.imgReal = self.util.removeScale( self.imgReal )
+        self.imgReal[np.where((self.imgReal==[0,0,0]).all(axis=2))] = [255,255,255]
         self.undistort(self.imgReal)
+        print("\tModifying depth image")
         self.undistort(self.imgTemp,15, -10)
+        print("\tApplying thresh")
         th = self.util.applyThresh(self.imgTemp)
+        print("\tGetting possible human bodies")
         contours = self.util.getContours( th )
+        print("\tSelect probable bodies")
         _ = self.selectValidBodies( contours )
         return self.imgReal
