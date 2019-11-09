@@ -8,6 +8,7 @@ accomplished is probable that we have a body.
 ##### Difficulties
  - find the proper values to do the segmentation stage, if this stage fails the whole result will be affected
  - It is possible that fails if we have a big element that generates heat, since it will be accomplished the two conditions 'area and heat'
+ - The ilumination makes the segmentation process fail.
 
 ##### Complexity
 Give an Image I(x,y) of dimensions N, M
