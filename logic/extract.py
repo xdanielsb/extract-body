@@ -3,43 +3,71 @@
 import cv2
 from matplotlib import pyplot as plt
 import numpy as np
+from .util import Util
 
-class Extract:
-    def __init__( self, pathReal , pathTemp  ):
-        self.imgReal = self.readImage( pathReal )
-        self.imgTemp = self.readImage( pathTemp )
-        self.nameWindow = 'ImageW1'
+class ExtractorBody:
 
-    def readImage(self, path, tt=1):
-        return cv2.imread( path, tt)
+    MIN_AREA_BODY  = 150000
+    SUM_RGB_WHITE  = 255 * 3
+    RED_THRESH     = 50
+    DEPTH_SCALE    = 0.001
+    RED_IDX        = 0
+    BLUE_IDX       = 1
 
-    def togray( self, img ):
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        return gray
+    def __init__( self, **kwargs ):
+        self.util = Util()
+        self.imgReal = self.util.readImage( kwargs["pathReal"] )
+        self.imgTemp = self.util.readImage( kwargs["pathTemp"] )
+        self.imgTempCopy = self.imgTemp.copy()
+        self.mCamera = np.load(kwargs["mCamera"])
+        self.mTrans = np.load(kwargs["mTrans"])
+        self.rows, self.cols, _ = self.imgReal.shape
+        self.mPre = np.dot( self.mCamera, self.mTrans)
 
-    def showImage(self, img):
-        cv2.namedWindow(self.nameWindow,cv2.WINDOW_NORMAL)
-        cv2.resizeWindow(self.nameWindow, 300, 700)
-        cv2.imshow(self.nameWindow , img)
-        cv2.waitKey(0)
+    def undistort( self, img, dx=0, dy=0):
+        for row in range( self.rows ):
+            for col in range( self.cols ):
+                aux = np.array([row, col, 0, 1])
+                res = np.dot( self.mPre, aux)
+                res = np.multiply( res, self.DEPTH_SCALE)
+                res = res.astype(int)
+                img[res[self.RED_IDX]+dx][res[self.BLUE_IDX]+dy] = img[row][col]
 
-    def histogram( self, img):
-        bins = 256
-        range_scale = [0,254]
-        nivel_transparencia = 0.5
-        plt.hist(img.ravel(),bins,range_scale, label="histogram", alpha=nivel_transparencia);
-        plt.legend(loc='upper right')
-        plt.show()
+    def getAvgSumRedPixels( self, img):
+        add, npixels =0., 0
+        for row in range( self.rows ):
+            for col in range( self.cols ):
+                if(sum(img[row][col]) == self.SUM_RGB_WHITE): continue
+                add += self.imgTempCopy[row][col][self.RED_IDX]
+                npixels += 1
+        avg = add / npixels
+        return avg
 
-    def canny( self, img):
-        img = togray( img )
-        res = cv2.Canny( img ,480,500)
-        return res
+    def cleanValuesNotInSelectedRegion( self):
+        for row in range( self.rows ):
+            for col in range( self.cols ):
+                if(sum(self.imgTemp[row][col]) == self.SUM_RGB_WHITE): continue
+                self.imgReal[row][col] = self.util.WHITE
 
-    def removeBlue(self, img):
-        lower = np.array([0,30,255])
-        upper = np.array([255,255,255])
-        mask = cv2.inRange(img, lower, upper)
-        res = cv2.bitwise_and(img, img, mask= mask)  #-- Contains pixels having the gray color--
-        # res = cv2.bitwise_or(img, img, mask= mask)  #-- Contains pixels having the gray color--
-        return res
+    def selectValidBodies( self, contours ):
+        possible_bodies = []
+        for i in range( 0, len(contours)):
+            area  = cv2.contourArea( contours[i] )
+            if( area > self.MIN_AREA_BODY):
+                imgCopy = self.imgTemp.copy()
+                self.util.fillContour(imgCopy, contours, i)
+                avg = self.getAvgSumRedPixels( self.imgTemp)
+                if( avg > self.RED_THRESH ):
+                    self.util.fillContour(self.imgTemp, contours, i)
+                    possible_bodies.append(i)
+        if( len(possible_bodies)):
+            self.cleanValuesNotInSelectedRegion()
+        return possible_bodies
+
+    def extract( self ):
+        self.undistort(self.imgReal)
+        self.undistort(self.imgTemp,15, -10)
+        th = self.util.applyThresh(self.imgTemp)
+        contours = self.util.getContours( th )
+        _ = self.selectValidBodies( contours )
+        return self.imgReal
